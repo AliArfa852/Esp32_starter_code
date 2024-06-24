@@ -59,8 +59,11 @@ def set_motor(speed, direction, motor):
 
 # Function to set servo angle
 def set_servo(servo, angle):
-    duty = int((angle / 180) * 1023 + 40)  # Convert angle (0-180) to duty cycle
+    min_duty = 40  # Minimum duty cycle for 0 degrees
+    max_duty = 115  # Maximum duty cycle for 180 degrees
+    duty = int(min_duty + (angle / 180) * (max_duty - min_duty))
     servo.duty(duty)
+
 
 # Setup the web server
 addr = socket.getaddrinfo('0.0.0.0', 80)[0][-1]

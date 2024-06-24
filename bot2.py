@@ -1,7 +1,8 @@
 import network
 import socket
-from machine import Pin, PWM
+from machine import Pin, PWM, I2C
 import time
+import ssd1306
 
 # Configuration for your WiFi network
 SSID = 'KDD Lab'
@@ -28,8 +29,14 @@ IN4 = Pin(32, Pin.OUT)
 EN_B = PWM(Pin(14), freq=1000)
 
 # Setup the servos
-servo1 = PWM(Pin(21), freq=50)
-servo2 = PWM(Pin(22), freq=50)
+servo1 = PWM(Pin(4), freq=50)
+servo2 = PWM(Pin(0), freq=50)
+
+# Setup I2C for the OLED display
+i2c = I2C(-1, scl=Pin(22), sda=Pin(21))
+oled_width = 128
+oled_height = 64
+oled = ssd1306.SSD1306_I2C(oled_width, oled_height, i2c)
 
 # Function to set motor speed and direction
 def set_motor(speed, direction, motor):
@@ -59,8 +66,21 @@ def set_motor(speed, direction, motor):
 
 # Function to set servo angle
 def set_servo(servo, angle):
-    duty = int((angle / 180) * 1023 + 40)  # Convert angle (0-180) to duty cycle
+    min_duty = 40  # Minimum duty cycle for 0 degrees
+    max_duty = 115  # Maximum duty cycle for 180 degrees
+    duty = int(min_duty + (angle / 180) * (max_duty - min_duty))
     servo.duty(duty)
+
+# Function to display a bot face
+def display_face(face_type):
+    oled.fill(0)  # Clear the display
+    if face_type == 'happy':
+        oled.text('0u0', 50, 25)
+    elif face_type == 'sad':
+        oled.text('OwO', 50, 25)
+    elif face_type == 'neutral':
+        oled.text('O-O', 50, 25)
+    oled.show()
 
 # Setup the web server
 addr = socket.getaddrinfo('0.0.0.0', 80)[0][-1]
@@ -97,6 +117,10 @@ html = """<!DOCTYPE html>
     <br>
     <label for="servo2">Servo 2 Angle:</label>
     <input type="range" id="servo2" name="servo2" min="0" max="180" onchange="sendServoCommand('servo2', this.value)">
+    <br>
+    <button onclick="sendFaceCommand('happy')">Show Happy Face</button>
+    <button onclick="sendFaceCommand('sad')">Show Sad Face</button>
+    <button onclick="sendFaceCommand('neutral')">Show Neutral Face</button>
     <script>
         function sendCommand(cmd) {
             var xhttp = new XMLHttpRequest();
@@ -111,6 +135,11 @@ html = """<!DOCTYPE html>
         function sendServoCommand(servo, angle) {
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", "/" + servo + "?angle=" + angle, true);
+            xhttp.send();
+        }
+        function sendFaceCommand(face) {
+            var xhttp = new XMLHttpRequest();
+            xhttp.open("GET", "/face?type=" + face, true);
             xhttp.send();
         }
     </script>
@@ -149,6 +178,9 @@ while True:
     elif 'GET /servo2' in request:
         angle = int(request.split('angle=')[1].split(' ')[0])
         set_servo(servo2, angle)
+    elif 'GET /face?type=' in request:
+        face_type = request.split('type=')[1].split(' ')[0]
+        display_face(face_type)
 
     # Send the HTML response
     response = html
