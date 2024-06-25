@@ -3,3 +3,5 @@
 #esp.osdebug(None)
 #import webrepl
 #webrepl.start()
+# boot.py
+import bot2
