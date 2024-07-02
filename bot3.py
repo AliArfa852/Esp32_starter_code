@@ -29,8 +29,8 @@ IN4 = Pin(32, Pin.OUT)
 EN_B = PWM(Pin(14), freq=1000)
 
 # Setup the servos
-servo1 = PWM(Pin(4), freq=50)
-servo2 = PWM(Pin(0), freq=50)
+servo1 = PWM(Pin(21), freq=50)
+servo2 = PWM(Pin(22), freq=50)
 
 # Setup I2C for the OLED display
 i2c = I2C(-1, scl=Pin(22), sda=Pin(21))
@@ -39,31 +39,45 @@ oled_height = 64
 oled = ssd1306.SSD1306_I2C(oled_width, oled_height, i2c)
 oled.text(wlan.ifconfig()[0], 10, 25)
 oled.show()
+
 # Function to set motor speed and direction
-def set_motor(speed, direction, motor):
+def set_motor(speed, direction):
     speed = int(speed * 1023 / 100)  # Convert 0-100% speed to duty cycle (0-1023)
-    if motor == 'A':
+    if direction == 'forward':
         EN_A.duty(speed)
-        if direction == 'forward':
-            IN1.value(1)
-            IN2.value(0)
-        elif direction == 'backward':
-            IN1.value(0)
-            IN2.value(1)
-        elif direction == 'stop':
-            IN1.value(0)
-            IN2.value(0)
-    elif motor == 'B':
         EN_B.duty(speed)
-        if direction == 'forward':
-            IN3.value(1)
-            IN4.value(0)
-        elif direction == 'backward':
-            IN3.value(0)
-            IN4.value(1)
-        elif direction == 'stop':
-            IN3.value(0)
-            IN4.value(0)
+        IN1.value(1)
+        IN2.value(0)
+        IN3.value(1)
+        IN4.value(0)
+    elif direction == 'backward':
+        EN_A.duty(speed)
+        EN_B.duty(speed)
+        IN1.value(0)
+        IN2.value(1)
+        IN3.value(0)
+        IN4.value(1)
+    elif direction == 'left':
+        EN_A.duty(speed)
+        EN_B.duty(speed)
+        IN1.value(0)
+        IN2.value(1)
+        IN3.value(1)
+        IN4.value(0)
+    elif direction == 'right':
+        EN_A.duty(speed)
+        EN_B.duty(speed)
+        IN1.value(1)
+        IN2.value(0)
+        IN3.value(0)
+        IN4.value(1)
+    elif direction == 'stop':
+        EN_A.duty(0)
+        EN_B.duty(0)
+        IN1.value(0)
+        IN2.value(0)
+        IN3.value(0)
+        IN4.value(0)
 
 # Function to set servo angle
 def set_servo(servo, angle):
@@ -76,11 +90,11 @@ def set_servo(servo, angle):
 def display_face(face_type):
     oled.fill(0)  # Clear the display
     if face_type == 'happy':
-        oled.text('0u0', 50, 25)
+        oled.text('0 u 0', 50, 25)
     elif face_type == 'sad':
-        oled.text('OwO', 50, 25)
+        oled.text('O w O', 50, 25)
     elif face_type == 'neutral':
-        oled.text('O-O', 50, 25)
+        oled.text('O - O', 50, 25)
     oled.show()
 
 # Setup the web server
@@ -99,19 +113,11 @@ html = """<!DOCTYPE html>
 </head>
 <body>
     <h1>ESP32 Car Control</h1>
-    <button onclick="sendCommand('forwardA')">Motor A Forward</button>
-    <button onclick="sendCommand('backwardA')">Motor A Backward</button>
-    <button onclick="sendCommand('stopA')">Motor A Stop</button>
-    <br>
-    <button onclick="sendCommand('forwardB')">Motor B Forward</button>
-    <button onclick="sendCommand('backwardB')">Motor B Backward</button>
-    <button onclick="sendCommand('stopB')">Motor B Stop</button>
-    <br>
-    <label for="speedA">Motor A Speed:</label>
-    <input type="range" id="speedA" name="speedA" min="0" max="100" onchange="sendSpeed('A', this.value)">
-    <br>
-    <label for="speedB">Motor B Speed:</label>
-    <input type="range" id="speedB" name="speedB" min="0" max="100" onchange="sendSpeed('B', this.value)">
+    <button onclick="sendCommand('forward')">Forward</button>
+    <button onclick="sendCommand('backward')">Backward</button>
+    <button onclick="sendCommand('left')">Left</button>
+    <button onclick="sendCommand('right')">Right</button>
+    <button onclick="sendCommand('stop')">Stop</button>
     <br>
     <label for="servo1">Servo 1 Angle:</label>
     <input type="range" id="servo1" name="servo1" min="0" max="180" onchange="sendServoCommand('servo1', this.value)">
@@ -126,11 +132,6 @@ html = """<!DOCTYPE html>
         function sendCommand(cmd) {
             var xhttp = new XMLHttpRequest();
             xhttp.open("GET", "/" + cmd, true);
-            xhttp.send();
-        }
-        function sendSpeed(motor, speed) {
-            var xhttp = new XMLHttpRequest();
-            xhttp.open("GET", "/speed" + motor + "?value=" + speed, true);
             xhttp.send();
         }
         function sendServoCommand(servo, angle) {
@@ -155,24 +156,16 @@ while True:
     request = cl.recv(1024).decode()
     print('Request:', request)
     
-    if 'GET /forwardA' in request:
-        set_motor(100, 'forward', 'A')
-    elif 'GET /backwardA' in request:
-        set_motor(100, 'backward', 'A')
-    elif 'GET /stopA' in request:
-        set_motor(0, 'stop', 'A')
-    elif 'GET /forwardB' in request:
-        set_motor(100, 'forward', 'B')
-    elif 'GET /backwardB' in request:
-        set_motor(100, 'backward', 'B')
-    elif 'GET /stopB' in request:
-        set_motor(0, 'stop', 'B')
-    elif 'GET /speedA' in request:
-        speed = int(request.split('value=')[1].split(' ')[0])
-        set_motor(speed, 'forward', 'A')
-    elif 'GET /speedB' in request:
-        speed = int(request.split('value=')[1].split(' ')[0])
-        set_motor(speed, 'forward', 'B')
+    if 'GET /forward' in request:
+        set_motor(100, 'forward')
+    elif 'GET /backward' in request:
+        set_motor(100, 'backward')
+    elif 'GET /left' in request:
+        set_motor(100, 'left')
+    elif 'GET /right' in request:
+        set_motor(100, 'right')
+    elif 'GET /stop' in request:
+        set_motor(0, 'stop')
     elif 'GET /servo1' in request:
         angle = int(request.split('angle=')[1].split(' ')[0])
         set_servo(servo1, angle)
@@ -188,3 +181,4 @@ while True:
     cl.send('HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n')
     cl.send(response)
     cl.close()
+
